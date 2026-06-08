@@ -108,27 +108,16 @@ class BackpackClient:
                 return m
         raise ValueError(f"Symbol {symbol} not found on Backpack")
 
-    def place_limit_order(
-        self,
-        symbol: str,
-        side: str,
-        price: str,
-        quantity: str,
-        client_id: Optional[int] = None,
-    ) -> dict:
+    def place_limit_order(self, symbol: str, side: str, price: str, quantity: str) -> dict:
         """side: 'Bid' (buy) or 'Ask' (sell)."""
-        # Sign only core order fields, matching backpackModule.js openOrder pattern
-        sig_params = {
+        body = {
             "orderType": "Limit",
             "price": price,
             "quantity": quantity,
             "side": side,
             "symbol": symbol,
         }
-        headers = self._auth_headers("orderExecute", sig_params)
-        body: dict = dict(sig_params)
-        if client_id is not None:
-            body["clientId"] = client_id
+        headers = self._auth_headers("orderExecute", body)
         resp = httpx.post(f"{BASE_URL}/api/v1/order", headers=headers, json=body, timeout=10)
         if not resp.is_success:
             raise ValueError(f"주문 실패 {resp.status_code}: {resp.text}")

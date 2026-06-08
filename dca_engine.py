@@ -1,6 +1,5 @@
 import logging
 import math
-import time
 from dataclasses import dataclass
 from enum import Enum
 from typing import Optional
@@ -124,7 +123,6 @@ def execute_dca(symbol: str, target_usdc: float) -> DCAResult:
 
         price_str = f"{limit_price:.{price_decimals}f}"
         qty_str = f"{qty:.{qty_decimals}f}"
-        client_id = (int(time.time() * 1000) + retry) % (2**31)
 
         logger.info(
             f"[시도 {retry + 1}/{ORDER_MAX_RETRIES}] {symbol} 매수 "
@@ -132,7 +130,7 @@ def execute_dca(symbol: str, target_usdc: float) -> DCAResult:
         )
 
         try:
-            order = client.place_limit_order(symbol, "Bid", price_str, qty_str, client_id)
+            order = client.place_limit_order(symbol, "Bid", price_str, qty_str)
             order_id = str(order.get("id") or order.get("orderId", ""))
             if not order_id:
                 result.error = f"주문 응답에 ID 없음: {order}"
