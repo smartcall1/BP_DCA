@@ -130,7 +130,8 @@ class BackpackClient:
         if client_id is not None:
             body["clientId"] = client_id
         resp = httpx.post(f"{BASE_URL}/api/v1/order", headers=headers, json=body, timeout=10)
-        resp.raise_for_status()
+        if not resp.is_success:
+            raise ValueError(f"주문 실패 {resp.status_code}: {resp.text}")
         return resp.json()
 
     def get_order(self, symbol: str, order_id: str) -> dict:
