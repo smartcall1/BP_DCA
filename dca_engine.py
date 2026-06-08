@@ -14,6 +14,7 @@ from config import (
     ORDER_PRICE_STEP_PCT,
     ORDER_RETRY_INTERVAL_SEC,
 )
+import state as st
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +37,9 @@ class DCAResult:
     skip_reason: Optional[SkipReason] = None
     usdc_balance_after: float = 0.0
     bp_balance_after: float = 0.0
+    current_price: float = 0.0
+    total_invested: float = 0.0
+    total_bp: float = 0.0
     error: Optional[str] = None
 
 
@@ -171,7 +175,7 @@ def execute_dca(symbol: str, target_usdc: float) -> DCAResult:
                 pass
             break
 
-    # --- 최종 잔고 조회 ---
+    # --- 최종 잔고 + 현재가 조회 ---
     try:
         _, usdc_after = client.get_usdc_balance()
         bp_total, _ = client.get_token_balance(base_token)
@@ -180,10 +184,19 @@ def execute_dca(symbol: str, target_usdc: float) -> DCAResult:
     except Exception:
         pass
 
+    try:
+        result.current_price = client.get_last_price(symbol)
+    except Exception:
+        pass
+
     if total_filled_qty > 0:
         result.filled_amount = total_filled_qty
         result.filled_usdc = total_filled_cost
         result.avg_price = total_filled_cost / total_filled_qty
+        # 누적 cost basis 업데이트
+        updated = st.update(total_filled_cost, total_filled_qty)
+        result.total_invested = updated["total_invested_usdc"]
+        result.total_bp = updated["total_bp_purchased"]
     else:
         result.error = result.error or "체결 없음"
 
@@ -213,7 +226,10 @@ def format_dca_notification(result: DCAResult) -> str:
 
     fill_pct = result.filled_usdc / result.target_usdc * 100 if result.target_usdc > 0 else 0
     status_emoji = "✅" if fill_pct >= 99 else "⚠️"
-    bp_value = result.bp_balance_after * result.avg_price
+
+    cur = result.current_price or result.avg_price
+    bp_value = result.bp_balance_after * cur
+    total_value = result.usdc_balance_after + bp_value
 
     lines = [
         f"{status_emoji} *BP DCA 완료*",
@@ -225,6 +241,24 @@ def format_dca_notification(result: DCAResult) -> str:
         "",
         "💰 *잔고 현황*",
         f"• USDC: `${result.usdc_balance_after:.2f}`",
-        f"• {base_token}: `{result.bp_balance_after:.4f}` ≈ `${bp_value:.2f}`",
+        f"• {base_token}: `{result.bp_balance_after:.4f}` @ `${cur:.4f}` = `${bp_value:.2f}`",
+        f"• 총 포트폴리오: `${total_value:.2f}`",
     ]
+
+    # 누적 PnL (state.json에 데이터 있을 때만)
+    if result.total_bp > 0 and result.current_price > 0:
+        avg_cost = result.total_invested / result.total_bp
+        current_val = result.total_bp * result.current_price
+        pnl = current_val - result.total_invested
+        pnl_pct = pnl / result.total_invested * 100
+        pnl_emoji = "📈" if pnl >= 0 else "📉"
+        lines += [
+            "",
+            f"{pnl_emoji} *누적 PnL*",
+            f"• 총 투입: `${result.total_invested:.2f}`",
+            f"• 현재 가치: `${current_val:.2f}`",
+            f"• 평균 매수가: `${avg_cost:.4f}`",
+            f"• 미실현 PnL: `{'%+.2f' % pnl}` (`{'%+.2f' % pnl_pct}%`)",
+        ]
+
     return "\n".join(lines)
