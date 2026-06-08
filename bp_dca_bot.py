@@ -95,8 +95,7 @@ async def job_dca(ctx: ContextTypes.DEFAULT_TYPE) -> None:
 def main() -> None:
     async def post_init(application: Application) -> None:
         await application.bot.set_my_commands([
-            BotCommand("status", "잔고·가격·PnL 현황"),
-            BotCommand("s", "현황 (단축키)"),
+            BotCommand("s", "잔고·가격·PnL 현황"),
             BotCommand("dca", "수동 DCA 즉시 실행"),
             BotCommand("config", "현재 설정 확인"),
             BotCommand("start", "봇 정보 및 명령어 목록"),
