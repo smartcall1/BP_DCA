@@ -130,6 +130,12 @@ def execute_dca(symbol: str, target_usdc: float) -> DCAResult:
             f"{qty_str} @ {price_str} (남은: ${remaining_usdc:.2f})"
         )
 
+        # 주문 전 BP 잔고 스냅샷 (체결량 delta 계산용)
+        try:
+            bp_before, _ = client.get_token_balance(base_token)
+        except Exception:
+            bp_before = 0.0
+
         try:
             order = client.place_limit_order(symbol, "Bid", price_str, qty_str)
             order_id = str(order.get("id") or order.get("orderId", ""))
@@ -144,6 +150,7 @@ def execute_dca(symbol: str, target_usdc: float) -> DCAResult:
         time.sleep(ORDER_RETRY_INTERVAL_SEC)
 
         # --- 주문 상태 확인 ---
+        filled_this_round = False
         try:
             status_resp = client.get_order(symbol, order_id)
             status = status_resp.get("status", "")
@@ -151,15 +158,14 @@ def execute_dca(symbol: str, target_usdc: float) -> DCAResult:
             exec_quote = float(status_resp.get("executedQuoteQuantity", 0))
 
             if exec_qty > 0:
-                # executedQuoteQuantity가 없으면 limit_price로 추정
                 avg_fill = exec_quote / exec_qty if exec_quote > 0 else limit_price
                 total_filled_qty += exec_qty
                 total_filled_cost += exec_qty * avg_fill
                 remaining_usdc = max(0.0, remaining_usdc - exec_qty * avg_fill)
                 result.retries = retry + 1
+                filled_this_round = True
                 logger.info(f"  체결: {exec_qty:.{qty_decimals}f} {base_token} @ ${avg_fill:.{price_decimals}f}")
 
-            # 미체결 잔량 취소
             if status not in ("Filled",):
                 client.cancel_order(symbol, order_id)
 
@@ -167,12 +173,28 @@ def execute_dca(symbol: str, target_usdc: float) -> DCAResult:
                 break
 
         except Exception as e:
-            logger.error(f"주문 조회/취소 실패: {e}")
-            try:
-                client.cancel_order(symbol, order_id)
-            except Exception:
-                pass
-            break
+            # 404 = Backpack이 체결된 주문을 삭제함 → BP 잔고 delta로 체결량 계산
+            if "404" in str(e):
+                try:
+                    bp_after, _ = client.get_token_balance(base_token)
+                    delta = round(bp_after - bp_before, qty_decimals)
+                    if delta > 0:
+                        total_filled_qty += delta
+                        total_filled_cost += delta * limit_price
+                        remaining_usdc = max(0.0, remaining_usdc - delta * limit_price)
+                        result.retries = retry + 1
+                        filled_this_round = True
+                        logger.info(f"  체결(delta): {delta:.{qty_decimals}f} {base_token} @ ~${limit_price:.{price_decimals}f}")
+                except Exception:
+                    pass
+                break  # 404 = 체결 완료, 루프 종료
+            else:
+                logger.error(f"주문 조회/취소 실패: {e}")
+                try:
+                    client.cancel_order(symbol, order_id)
+                except Exception:
+                    pass
+                break
 
     # --- 최종 잔고 + 현재가 조회 ---
     try:
