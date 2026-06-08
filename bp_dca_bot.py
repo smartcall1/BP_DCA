@@ -44,7 +44,7 @@ async def cmd_start(update: Update, _ctx: ContextTypes.DEFAULT_TYPE) -> None:
         f"• 실행 시각: `{DCA_TIME_AEST[0]:02d}:{DCA_TIME_AEST[1]:02d} AEST`"
         f" (UTC `{utc_h:02d}:{utc_m:02d}`)\n"
         f"\n📌 *명령어*\n"
-        f"/status — 잔고 및 가격 조회\n"
+        f"/status (또는 /s) — 잔고·가격·PnL 현황\n"
         f"/dca — 수동 DCA 즉시 실행\n"
         f"/config — 현재 설정 확인\n"
     )
@@ -97,6 +97,7 @@ def main() -> None:
 
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("status", cmd_status, filters=OWNER_FILTER))
+    app.add_handler(CommandHandler("s", cmd_status, filters=OWNER_FILTER))
     app.add_handler(CommandHandler("dca", cmd_dca, filters=OWNER_FILTER))
     app.add_handler(CommandHandler("config", cmd_config, filters=OWNER_FILTER))
 
