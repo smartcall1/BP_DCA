@@ -60,13 +60,21 @@ async def cmd_status(update: Update, _ctx: ContextTypes.DEFAULT_TYPE) -> None:
     await msg.edit_text(status, parse_mode="Markdown")
 
 
-async def cmd_dca(update: Update, _ctx: ContextTypes.DEFAULT_TYPE) -> None:
+async def cmd_dca(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     msg = await update.message.reply_text(
         f"⏳ `{DCA_SYMBOL}` DCA 실행 중 (${DCA_AMOUNT_USDC:.2f} USDC)...",
         parse_mode="Markdown",
     )
     result = await asyncio.to_thread(execute_dca, DCA_SYMBOL, DCA_AMOUNT_USDC)
     await msg.edit_text(format_dca_notification(result), parse_mode="Markdown")
+    try:
+        await ctx.bot.pin_chat_message(
+            chat_id=msg.chat_id,
+            message_id=msg.message_id,
+            disable_notification=True,
+        )
+    except Exception as e:
+        logger.warning(f"수동 DCA 결과 고정 실패: {e}")
 
 
 async def cmd_config(update: Update, _ctx: ContextTypes.DEFAULT_TYPE) -> None:
@@ -93,11 +101,19 @@ async def job_dca(ctx: ContextTypes.DEFAULT_TYPE) -> None:
         result = await asyncio.to_thread(execute_dca, DCA_SYMBOL, DCA_AMOUNT_USDC)
     finally:
         _dca_running = False
-    await ctx.bot.send_message(
+    msg = await ctx.bot.send_message(
         chat_id=TELEGRAM_CHAT_ID,
         text=format_dca_notification(result),
         parse_mode="Markdown",
     )
+    try:
+        await ctx.bot.pin_chat_message(
+            chat_id=TELEGRAM_CHAT_ID,
+            message_id=msg.message_id,
+            disable_notification=True,
+        )
+    except Exception as e:
+        logger.warning(f"스케줄 DCA 결과 고정 실패: {e}")
 
 
 async def job_price_ticker(ctx: ContextTypes.DEFAULT_TYPE) -> None:
