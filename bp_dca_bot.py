@@ -146,11 +146,11 @@ def main() -> None:
 
     app.job_queue.run_repeating(
         job_price_ticker,
-        interval=600,
+        interval=60,
         first=60,
         name="price_ticker",
     )
-    logger.info("가격 티커 스케줄 등록: 10분 간격 (봇 시작 후 1분 뒤 첫 실행)")
+    logger.info("가격 티커 스케줄 등록: 1분 간격 (봇 시작 후 1분 뒤 첫 실행)")
 
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 
