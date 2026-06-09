@@ -144,4 +144,4 @@ def get_price_ticker(symbol: str = "BP_USDC") -> str:
         logger.warning(f"가격 티커 조회 실패: {e}")
         return f"❌ 가격 조회 실패: {e}"
 
-    return f"🎒 ${last_price:.4f} {base_token}/USD ({_fmt_pct(change_pct)} 24h)"
+    return f"🎒 ${last_price:.4f} ({_fmt_pct(change_pct)} 24h)"
