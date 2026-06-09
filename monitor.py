@@ -127,3 +127,22 @@ def get_status(symbol: str = "BP_USDC") -> str:
         ]
 
     return "\n".join(lines)
+
+
+def get_price_ticker(symbol: str = "BP_USDC") -> str:
+    client = BackpackClient(BP_API_KEY, BP_API_SECRET)
+    base_token = symbol.split("_")[0]
+    now_aest = datetime.now(AEST).strftime("%H:%M AEST")
+
+    try:
+        ticker = client.get_ticker(symbol)
+        last_price = float(ticker.get("lastPrice", 0))
+        change_pct = float(ticker.get("priceChangePercent", 0)) * 100
+        high_24h = float(ticker.get("high", 0))
+        low_24h = float(ticker.get("low", 0))
+    except Exception as e:
+        logger.warning(f"가격 티커 조회 실패: {e}")
+        return f"❌ 가격 조회 실패: {e}"
+
+    change_emoji = "📈" if change_pct >= 0 else "📉"
+    return f"{change_emoji} ${last_price:.4f} {base_token}/USD ({_fmt_pct(change_pct)} 24h)"

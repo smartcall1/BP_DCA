@@ -17,7 +17,7 @@ from config import (
     TELEGRAM_CHAT_ID,
 )
 from dca_engine import execute_dca, format_dca_notification
-from monitor import get_status
+from monitor import get_status, get_price_ticker
 
 logging.basicConfig(
     level=logging.INFO,
@@ -26,6 +26,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 OWNER_FILTER = filters.Chat(TELEGRAM_CHAT_ID)
+
+_dca_running = False
 
 
 def _aest_to_utc(hour: int, minute: int) -> tuple[int, int]:
@@ -83,13 +85,33 @@ async def cmd_config(update: Update, _ctx: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def job_dca(ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    global _dca_running
     logger.info(f"스케줄 DCA 실행: {DCA_SYMBOL} ${DCA_AMOUNT_USDC}")
-    result = await asyncio.to_thread(execute_dca, DCA_SYMBOL, DCA_AMOUNT_USDC)
+    _dca_running = True
+    try:
+        result = await asyncio.to_thread(execute_dca, DCA_SYMBOL, DCA_AMOUNT_USDC)
+    finally:
+        _dca_running = False
     await ctx.bot.send_message(
         chat_id=TELEGRAM_CHAT_ID,
         text=format_dca_notification(result),
         parse_mode="Markdown",
     )
+
+
+async def job_price_ticker(ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    if _dca_running:
+        logger.info("DCA 진행 중 — 가격 티커 스킵")
+        return
+    try:
+        text = await asyncio.to_thread(get_price_ticker, DCA_SYMBOL)
+        await ctx.bot.send_message(
+            chat_id=TELEGRAM_CHAT_ID,
+            text=text,
+            parse_mode="Markdown",
+        )
+    except Exception as e:
+        logger.warning(f"가격 티커 전송 실패: {e}")
 
 
 def main() -> None:
@@ -121,6 +143,14 @@ def main() -> None:
         f"DCA 스케줄 등록: 매일 {DCA_TIME_AEST[0]:02d}:{DCA_TIME_AEST[1]:02d} AEST"
         f" (UTC {utc_h:02d}:{utc_m:02d})"
     )
+
+    app.job_queue.run_repeating(
+        job_price_ticker,
+        interval=600,
+        first=60,
+        name="price_ticker",
+    )
+    logger.info("가격 티커 스케줄 등록: 10분 간격 (봇 시작 후 1분 뒤 첫 실행)")
 
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 
