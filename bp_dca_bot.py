@@ -15,6 +15,7 @@ from config import (
     ORDER_RETRY_INTERVAL_SEC,
     TELEGRAM_BOT_TOKEN,
     TELEGRAM_CHAT_ID,
+    TICKER_INTERVAL_SEC,
 )
 from dca_engine import execute_dca, format_dca_notification
 from monitor import get_status, get_price_ticker
@@ -146,11 +147,11 @@ def main() -> None:
 
     app.job_queue.run_repeating(
         job_price_ticker,
-        interval=180,
-        first=180,
+        interval=TICKER_INTERVAL_SEC,
+        first=TICKER_INTERVAL_SEC,
         name="price_ticker",
     )
-    logger.info("가격 티커 스케줄 등록: 3분 간격 (봇 시작 후 3분 뒤 첫 실행)")
+    logger.info(f"가격 티커 스케줄 등록: {TICKER_INTERVAL_SEC}초 간격")
 
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 

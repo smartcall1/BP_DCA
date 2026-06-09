@@ -21,4 +21,6 @@ ORDER_RETRY_INTERVAL_SEC: int = int(os.getenv("ORDER_RETRY_INTERVAL_SEC", "30"))
 ORDER_PRICE_STEP_PCT: float = float(os.getenv("ORDER_PRICE_STEP_PCT", "0.1"))
 ORDER_MAX_RETRIES: int = int(os.getenv("ORDER_MAX_RETRIES", "10"))
 
+TICKER_INTERVAL_SEC: int = int(os.getenv("TICKER_INTERVAL_SEC", "180"))
+
 AEST_OFFSET: int = 10
