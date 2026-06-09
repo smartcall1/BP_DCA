@@ -43,8 +43,8 @@ async def cmd_start(update: Update, _ctx: ContextTypes.DEFAULT_TYPE) -> None:
         f"🤖 *BP DCA Bot*\n"
         f"━━━━━━━━━━━━━━\n"
         f"• 심볼: `{DCA_SYMBOL}`\n"
-        f"• 일일 DCA: `${DCA_AMOUNT_USDC:.2f} USDC`\n"
-        f"• 실행 시각: `{DCA_TIME_AEST[0]:02d}:{DCA_TIME_AEST[1]:02d} AEST`"
+        f"• DCA 금액: `${DCA_AMOUNT_USDC:.2f} USDC / 8시간`\n"
+        f"• 첫 실행: `{DCA_TIME_AEST[0]:02d}:{DCA_TIME_AEST[1]:02d} AEST`"
         f" (UTC `{utc_h:02d}:{utc_m:02d}`)\n"
         f"\n📌 *명령어*\n"
         f"/status (또는 /s) — 잔고·가격·PnL 현황\n"
@@ -75,7 +75,7 @@ async def cmd_config(update: Update, _ctx: ContextTypes.DEFAULT_TYPE) -> None:
         f"⚙️ *현재 설정*\n"
         f"━━━━━━━━━━━━━━\n"
         f"• 심볼: `{DCA_SYMBOL}`\n"
-        f"• DCA 금액: `${DCA_AMOUNT_USDC:.2f} USDC/일`\n"
+        f"• DCA 금액: `${DCA_AMOUNT_USDC:.2f} USDC / 8시간`\n"
         f"• 실행 시각: `{DCA_TIME_AEST[0]:02d}:{DCA_TIME_AEST[1]:02d} AEST`"
         f" (UTC `{utc_h:02d}:{utc_m:02d}`)\n"
         f"• 최소 USDC 버퍼: `${MIN_USDC_BALANCE:.2f}`\n"
@@ -135,14 +135,15 @@ def main() -> None:
     app.add_handler(CommandHandler("config", cmd_config, filters=OWNER_FILTER))
 
     utc_h, utc_m = _aest_to_utc(*DCA_TIME_AEST)
-    app.job_queue.run_daily(
+    app.job_queue.run_repeating(
         job_dca,
-        time=dt_time(utc_h, utc_m, tzinfo=timezone.utc),
-        name="daily_dca",
+        interval=8 * 3600,
+        first=dt_time(utc_h, utc_m, tzinfo=timezone.utc),
+        name="interval_dca",
     )
     logger.info(
-        f"DCA 스케줄 등록: 매일 {DCA_TIME_AEST[0]:02d}:{DCA_TIME_AEST[1]:02d} AEST"
-        f" (UTC {utc_h:02d}:{utc_m:02d})"
+        f"DCA 스케줄 등록: 8시간마다 (첫 실행 {DCA_TIME_AEST[0]:02d}:{DCA_TIME_AEST[1]:02d} AEST"
+        f" / UTC {utc_h:02d}:{utc_m:02d})"
     )
 
     app.job_queue.run_repeating(
