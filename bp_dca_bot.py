@@ -54,10 +54,18 @@ async def cmd_start(update: Update, _ctx: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(text, parse_mode="Markdown")
 
 
-async def cmd_status(update: Update, _ctx: ContextTypes.DEFAULT_TYPE) -> None:
+async def cmd_status(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     msg = await update.message.reply_text("⏳ 조회 중...", parse_mode="Markdown")
     status = await asyncio.to_thread(get_status, DCA_SYMBOL)
     await msg.edit_text(status, parse_mode="Markdown")
+    try:
+        await ctx.bot.pin_chat_message(
+            chat_id=msg.chat_id,
+            message_id=msg.message_id,
+            disable_notification=True,
+        )
+    except Exception as e:
+        logger.warning(f"/s 결과 고정 실패: {e}")
 
 
 async def cmd_dca(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
