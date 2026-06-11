@@ -127,6 +127,7 @@ async def job_price_ticker(ctx: ContextTypes.DEFAULT_TYPE) -> None:
             chat_id=TELEGRAM_CHAT_ID,
             text=text,
             parse_mode="Markdown",
+            disable_notification=True,
         )
     except Exception as e:
         logger.warning(f"가격 티커 전송 실패: {e}")
