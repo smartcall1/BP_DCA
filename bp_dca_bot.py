@@ -64,14 +64,6 @@ async def cmd_dca(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     )
     result = await asyncio.to_thread(execute_dca, DCA_SYMBOL, DCA_AMOUNT_USDC)
     await msg.edit_text(format_dca_notification(result), parse_mode="Markdown")
-    try:
-        await ctx.bot.pin_chat_message(
-            chat_id=msg.chat_id,
-            message_id=msg.message_id,
-            disable_notification=True,
-        )
-    except Exception as e:
-        logger.warning(f"수동 DCA 결과 고정 실패: {e}")
 
 
 async def cmd_config(update: Update, _ctx: ContextTypes.DEFAULT_TYPE) -> None:
@@ -103,15 +95,10 @@ async def job_dca(ctx: ContextTypes.DEFAULT_TYPE) -> None:
         _dca_running = False
 
     try:
-        msg = await ctx.bot.send_message(
+        await ctx.bot.send_message(
             chat_id=TELEGRAM_CHAT_ID,
             text=text,
             parse_mode="Markdown",
-        )
-        await ctx.bot.pin_chat_message(
-            chat_id=TELEGRAM_CHAT_ID,
-            message_id=msg.message_id,
-            disable_notification=True,
         )
     except Exception as e:
         logger.warning(f"스케줄 DCA 알림 전송 실패: {e}")
