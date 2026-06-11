@@ -54,9 +54,16 @@ def _floor_to_step(value: float, step: float) -> float:
 
 
 def execute_dca(symbol: str, target_usdc: float) -> DCAResult:
-    client = BackpackClient(BP_API_KEY, BP_API_SECRET)
     result = DCAResult(symbol=symbol, target_usdc=target_usdc)
     base_token = symbol.split("_")[0]
+
+    try:
+        client = BackpackClient(BP_API_KEY, BP_API_SECRET)
+    except Exception as e:
+        result.skipped = True
+        result.skip_reason = SkipReason.MARKET_ERROR
+        result.error = f"클라이언트 초기화 실패: {e}"
+        return result
 
     # --- 안전 체크: USDC 잔고 ---
     try:

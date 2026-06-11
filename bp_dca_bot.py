@@ -1,15 +1,12 @@
 import asyncio
 import logging
-from datetime import time as dt_time, timezone
 
 from telegram import Update, BotCommand
 from telegram.ext import Application, CommandHandler, ContextTypes, filters
 
 from config import (
-    AEST_OFFSET,
     DCA_AMOUNT_USDC,
     DCA_SYMBOL,
-    DCA_TIME_AEST,
     MIN_USDC_BALANCE,
     ORDER_MAX_RETRIES,
     ORDER_RETRY_INTERVAL_SEC,
@@ -31,21 +28,13 @@ OWNER_FILTER = filters.Chat(TELEGRAM_CHAT_ID)
 _dca_running = False
 
 
-def _aest_to_utc(hour: int, minute: int) -> tuple[int, int]:
-    total_min = (hour * 60 + minute) - AEST_OFFSET * 60
-    total_min = total_min % (24 * 60)
-    return total_min // 60, total_min % 60
-
-
 async def cmd_start(update: Update, _ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    utc_h, utc_m = _aest_to_utc(*DCA_TIME_AEST)
     text = (
         f"🤖 *BP DCA Bot*\n"
         f"━━━━━━━━━━━━━━\n"
         f"• 심볼: `{DCA_SYMBOL}`\n"
         f"• DCA 금액: `${DCA_AMOUNT_USDC:.2f} USDC / 8시간`\n"
-        f"• 첫 실행: `{DCA_TIME_AEST[0]:02d}:{DCA_TIME_AEST[1]:02d} AEST`"
-        f" (UTC `{utc_h:02d}:{utc_m:02d}`)\n"
+        f"• 스케줄: 봇 시작 1분 후 첫 실행, 이후 8시간마다\n"
         f"\n📌 *명령어*\n"
         f"/status (또는 /s) — 잔고·가격·PnL 현황\n"
         f"/dca — 수동 DCA 즉시 실행\n"
@@ -86,14 +75,12 @@ async def cmd_dca(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def cmd_config(update: Update, _ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    utc_h, utc_m = _aest_to_utc(*DCA_TIME_AEST)
     text = (
         f"⚙️ *현재 설정*\n"
         f"━━━━━━━━━━━━━━\n"
         f"• 심볼: `{DCA_SYMBOL}`\n"
         f"• DCA 금액: `${DCA_AMOUNT_USDC:.2f} USDC / 8시간`\n"
-        f"• 실행 시각: `{DCA_TIME_AEST[0]:02d}:{DCA_TIME_AEST[1]:02d} AEST`"
-        f" (UTC `{utc_h:02d}:{utc_m:02d}`)\n"
+        f"• 스케줄: 봇 시작 1분 후 첫 실행, 이후 8시간마다\n"
         f"• 최소 USDC 버퍼: `${MIN_USDC_BALANCE:.2f}`\n"
         f"• 최대 재시도: `{ORDER_MAX_RETRIES}회`\n"
         f"• 재시도 간격: `{ORDER_RETRY_INTERVAL_SEC}초`\n"
@@ -105,23 +92,29 @@ async def job_dca(ctx: ContextTypes.DEFAULT_TYPE) -> None:
     global _dca_running
     logger.info(f"스케줄 DCA 실행: {DCA_SYMBOL} ${DCA_AMOUNT_USDC}")
     _dca_running = True
+    text = ""
     try:
         result = await asyncio.to_thread(execute_dca, DCA_SYMBOL, DCA_AMOUNT_USDC)
+        text = format_dca_notification(result)
+    except Exception as e:
+        logger.error(f"스케줄 DCA 예외: {e}", exc_info=True)
+        text = f"❌ *DCA 스케줄 예외*\n`{e}`"
     finally:
         _dca_running = False
-    msg = await ctx.bot.send_message(
-        chat_id=TELEGRAM_CHAT_ID,
-        text=format_dca_notification(result),
-        parse_mode="Markdown",
-    )
+
     try:
+        msg = await ctx.bot.send_message(
+            chat_id=TELEGRAM_CHAT_ID,
+            text=text,
+            parse_mode="Markdown",
+        )
         await ctx.bot.pin_chat_message(
             chat_id=TELEGRAM_CHAT_ID,
             message_id=msg.message_id,
             disable_notification=True,
         )
     except Exception as e:
-        logger.warning(f"스케줄 DCA 결과 고정 실패: {e}")
+        logger.warning(f"스케줄 DCA 알림 전송 실패: {e}")
 
 
 async def job_price_ticker(ctx: ContextTypes.DEFAULT_TYPE) -> None:
@@ -158,17 +151,13 @@ def main() -> None:
     app.add_handler(CommandHandler("dca", cmd_dca, filters=OWNER_FILTER))
     app.add_handler(CommandHandler("config", cmd_config, filters=OWNER_FILTER))
 
-    utc_h, utc_m = _aest_to_utc(*DCA_TIME_AEST)
     app.job_queue.run_repeating(
         job_dca,
         interval=8 * 3600,
-        first=dt_time(utc_h, utc_m, tzinfo=timezone.utc),
+        first=60,
         name="interval_dca",
     )
-    logger.info(
-        f"DCA 스케줄 등록: 8시간마다 (첫 실행 {DCA_TIME_AEST[0]:02d}:{DCA_TIME_AEST[1]:02d} AEST"
-        f" / UTC {utc_h:02d}:{utc_m:02d})"
-    )
+    logger.info("DCA 스케줄 등록: 봇 시작 1분 후 첫 실행, 이후 8시간마다")
 
     app.job_queue.run_repeating(
         job_price_ticker,
